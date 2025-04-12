@@ -1,0 +1,299 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -320,
+        -100
+      ],
+      "id": "b19807ed-c10f-4e6b-9ce4-dabb617e8298",
+      "name": "Gmail Trigger",
+      "notesInFlow": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "chUGBONVf9uREOaH",
+          "name": "Gmail account"
+        }
+      },
+      "notes": "watch mails"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "672ea400-113d-4aaa-8d20-cda5ee1428f6",
+              "name": "subject",
+              "value": "={{ $json.payload }}{{ $json.Subject }}",
+              "type": "string"
+            },
+            {
+              "id": "665b6a4d-2bbf-4d48-891c-f13583952e44",
+              "name": "from",
+              "value": "={{ $json.From }}",
+              "type": "string"
+            },
+            {
+              "id": "02bbff79-2ce7-406c-b38d-80294139ef12",
+              "name": "snippet",
+              "value": "={{ $json.snippet }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -100,
+        -100
+      ],
+      "id": "e8f7b32a-504c-4894-b12a-7ee15776f592",
+      "name": "Set Node"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst cleanedItems = items.map((item) => {\n  if (item?.json?.payload?.mimeType === \"base64\") {\n    const cleanedBase64 = item?.json?.payload?.mimeType.replace(\n      /[^A-Za-z0-9+/=]/g,\n      \"\",\n    );\n    item.json.payload.mimeType = cleanedBase64;\n  }\n  return item;\n});\nreturn cleanedItems;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        -100
+      ],
+      "id": "35bb0eb7-e553-4834-89d2-e88e34a43b1c",
+      "name": "function1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst result = items.map((item) => {\n  const text = item.json.snippet?.toLowerCase() || \"\";\n  let type = \"General\";\n\n  if (\n    text.includes(\"error\") || text.includes(\"bug\") || text.includes(\"crash\") ||\n    text.includes(\"issue\") || text.includes(\"not working\") || text.includes(\"failure\")\n  ) {\n    type = \"Technical\";\n  } else if (\n    text.includes(\"anxiety\") || text.includes(\"stress\") || text.includes(\"mental health\") ||\n    text.includes(\"therapy\") || text.includes(\"depression\") || text.includes(\"counseling\")\n  ) {\n    type = \"Psychological\";\n  } else if (\n    text.includes(\"invoice\") || text.includes(\"payment\") || text.includes(\"bill\") ||\n    text.includes(\"account\") || text.includes(\"refund\") || text.includes(\"charge\")\n  ) {\n    type = \"Accounts\";\n  } else if (\n    text.includes(\"product\") || text.includes(\"service\") || text.includes(\"delivery\") ||\n    text.includes(\"order\") || text.includes(\"quality\") || text.includes(\"support\")\n  ) {\n    type = \"Product/Service\";\n  }\n\n  // return updated object\n  return {\n    json: {\n      subject: item.json.subject,\n      from: item.json.from,\n      body: item.json.decodedText,\n      type: type,\n    }\n  };\n});\n\nreturn result;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        -300
+      ],
+      "id": "3935fae1-89b6-4201-a067-2cdace0b1313",
+      "name": "Classify Email Type",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://flowdesk-model.onrender.com",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "subject",
+              "value": "={{ $('Set Node').item.json.Subject }}"
+            },
+            {
+              "name": "from",
+              "value": "={{ $('Set Node').item.json.From }}"
+            },
+            {
+              "name": "body",
+              "value": "={{ $('function1').item.json.snippet }}"
+            },
+            {
+              "name": "type",
+              "value": "={{ $json.predicted_category }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        -100
+      ],
+      "id": "74eec2ce-735d-48ce-b227-c0c8fc456d6d",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://flowdesk-model.onrender.com/classify",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "email_text",
+              "value": "={{ $('Set Node').item.json.snippet }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        400,
+        -100
+      ],
+      "id": "8b25c3e6-4f8e-4864-90c2-6d6543146b53",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        340,
+        200
+      ],
+      "id": "8efe35ed-5cff-4e56-b2ef-f2cedcdacb36",
+      "name": "When chat message received",
+      "webhookId": "69543f1c-25ca-494f-b85c-2cdbcc9a76c3",
+      "disabled": true
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        560,
+        200
+      ],
+      "id": "950487f2-8032-4235-b16e-0af8fe1a9746",
+      "name": "Basic LLM Chain",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "gpt-3.5-turbo"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        560,
+        340
+      ],
+      "id": "50159f10-6dfb-4ca7-a775-097de7af3825",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "BQqlCKBJFBolkFX8",
+          "name": "OpenAi account"
+        }
+      },
+      "disabled": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Node": {
+      "main": [
+        [
+          {
+            "node": "function1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "function1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Email Type": {
+      "main": [
+        []
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        []
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "4c8e670a-161c-4079-bb80-96d63ec80344",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "317d24b6284218144b1111142b2f1c01cff68fa789f5b8a4bd7797b7b9727753"
+  },
+  "id": "m0AwwLgIf6lpJ2jO",
+  "tags": []
+}
